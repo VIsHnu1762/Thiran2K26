@@ -1,0 +1,7 @@
+{
+  "name": "BillAgent Pro",
+  "description": "An Agentic AI-enabled bill processing system that converts handwritten receipts into actionable digital insights using multi-agent reasoning.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
