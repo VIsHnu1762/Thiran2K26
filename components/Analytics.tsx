@@ -39,8 +39,8 @@ const Analytics: React.FC<{ bills: Bill[] }> = ({ bills }) => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="matte-card p-8 rounded-3xl">
           <h2 className="text-xl font-bold text-white mb-8">Top Revenue Items</h2>
-          <div className="h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[400px]" style={{ minHeight: '400px' }}>
+            <ResponsiveContainer width="100%" height={400}>
               <BarChart data={chartData} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(255,255,255,0.05)" />
                 <XAxis type="number" hide />

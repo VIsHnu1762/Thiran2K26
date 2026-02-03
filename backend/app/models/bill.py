@@ -11,11 +11,11 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, List, Optional, Dict, Any
 
 from sqlalchemy import (
-    String, DateTime, Date, Numeric, Float, Text, Enum, 
+    String, DateTime, Date, Numeric, Float, Text, Enum, JSON,
     ForeignKey, Index, CheckConstraint
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID
 
 from ..database import Base
 
@@ -137,7 +137,7 @@ class Bill(Base):
     )
     
     field_confidence: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONB,
+        JSON,
         nullable=True,
         default=dict,
         comment="Per-field confidence scores"
@@ -147,7 +147,7 @@ class Bill(Base):
     # Validation
     # -------------------------------------------------------------------------
     validation_errors: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(
-        JSONB,
+        JSON,
         nullable=True,
         default=list,
         comment="List of validation errors from auditor agent"
@@ -175,13 +175,13 @@ class Bill(Base):
     )
     
     ocr_raw_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONB,
+        JSON,
         nullable=True,
         comment="Raw OCR response for debugging"
     )
     
     bounding_boxes: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONB,
+        JSON,
         nullable=True,
         comment="Bounding box coordinates for UI highlighting"
     )

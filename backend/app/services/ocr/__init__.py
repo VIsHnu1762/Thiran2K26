@@ -12,6 +12,7 @@ from .base import (
     OCRLineItem,
     BoundingBox,
 )
+from .tesseract_ocr import TesseractOCR
 from .mistral_ocr import MistralOCR
 from .gpt4_vision import GPT4VisionOCR
 from .ocr_parser import OCRParser
@@ -23,6 +24,7 @@ __all__ = [
     "OCRField",
     "OCRLineItem",
     "BoundingBox",
+    "TesseractOCR",
     "MistralOCR",
     "GPT4VisionOCR",
     "OCRParser",

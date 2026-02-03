@@ -15,7 +15,10 @@ possible_paths = [
 for path in possible_paths:
     if os.path.exists(path):
         pytesseract.pytesseract.tesseract_cmd = path
+        print(f"✅ Tesseract found at: {path}")
         break
+else:
+    print("⚠️ Tesseract not found in common locations, will rely on PATH")
 
 def extract_text_with_confidence(image: np.ndarray) -> List[Dict[str, Any]]:
     """

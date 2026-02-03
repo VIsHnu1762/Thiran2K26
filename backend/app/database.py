@@ -25,11 +25,17 @@ class Base(DeclarativeBase):
 # -----------------------------------------------------------------------------
 # Engine Configuration
 # -----------------------------------------------------------------------------
+# For SQLite, we need connect_args with check_same_thread=False
+connect_args = {}
+if settings.database_type == "sqlite":
+    connect_args = {"check_same_thread": False}
+
 engine: AsyncEngine = create_async_engine(
     settings.database_url,
     echo=settings.debug,  # Log SQL queries in debug mode
     future=True,
-    pool_pre_ping=True,  # Verify connections before use
+    connect_args=connect_args,
+    pool_pre_ping=True if settings.database_type != "sqlite" else False,
     # Use NullPool for better async behavior
     # In production, consider using connection pooling
     poolclass=NullPool if settings.environment == "development" else None,

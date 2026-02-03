@@ -250,8 +250,8 @@ const Dashboard: React.FC<{ bills: Bill[], onNavigate: (page: Page) => void, onS
                 <button className="tap-effect px-5 py-2 rounded-xl text-xs font-bold text-white/40 hover:text-white/70">30D</button>
               </div>
             </div>
-            <div className="h-[340px]">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="h-[340px]" style={{ minHeight: '340px' }}>
+              <ResponsiveContainer width="100%" height={340}>
                 <AreaChart data={[
                   { name: 'Mon', sales: 4000 }, { name: 'Tue', sales: 3000 }, { name: 'Wed', sales: 2000 },
                   { name: 'Thu', sales: 2780 }, { name: 'Fri', sales: 1890 }, { name: 'Sat', sales: 2390 },

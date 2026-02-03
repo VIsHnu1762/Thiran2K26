@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # Database Configuration
     # -------------------------------------------------------------------------
+    database_type: str = Field(default="sqlite", description="Database type: sqlite or postgresql")
     postgres_host: str = Field(default="localhost", description="PostgreSQL host")
     postgres_port: int = Field(default=5432, description="PostgreSQL port")
     postgres_db: str = Field(default="billagent", description="Database name")
@@ -33,11 +34,15 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         """Async database URL for SQLAlchemy."""
+        if self.database_type == "sqlite":
+            return "sqlite+aiosqlite:///./billagent.db"
         return f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
     
     @property
     def database_url_sync(self) -> str:
         """Sync database URL for Alembic migrations."""
+        if self.database_type == "sqlite":
+            return "sqlite:///./billagent.db"
         return f"postgresql://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
     
     # -------------------------------------------------------------------------
@@ -106,6 +111,7 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     environment: str = Field(default="development", description="Environment name")
     debug: bool = Field(default=True, description="Debug mode")
+    api_version: str = Field(default="1.0.0", description="API version")
     api_v1_prefix: str = Field(default="/api/v1", description="API version prefix")
     project_name: str = Field(default="BillAgent Pro", description="Project name")
     

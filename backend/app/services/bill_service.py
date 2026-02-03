@@ -53,6 +53,7 @@ class ProcessingResult:
     """Overall result of bill processing."""
     bill_id: Optional[UUID] = None
     status: str = "PROCESSING"
+    bill_data: Optional[Dict[str, Any]] = None  # Add bill_data field
     stages_completed: List[str] = field(default_factory=list)
     stage_results: List[ProcessingStepResult] = field(default_factory=list)
     total_processing_time_ms: int = 0
@@ -203,6 +204,7 @@ class BillProcessingService:
                 ))
                 result.status = "FAILED"
                 result.errors = digitization_result.validation_errors
+                result.bill_data = {}  # Empty bill data on failure
                 return result
             
             result.stage_results.append(ProcessingStepResult(
@@ -218,6 +220,7 @@ class BillProcessingService:
             # Save Bill to Database (status=PROCESSING)
             # =================================================================
             bill_data = digitization_result.bill_data
+            result.bill_data = bill_data  # Store in result
             
             # Create Bill entity
             bill = Bill(
@@ -236,7 +239,7 @@ class BillProcessingService:
                 bounding_boxes=digitization_result.metadata.get("bounding_boxes") if digitization_result.metadata else None,
                 task_id=task_id,
                 processing_time_ms=stage_duration,
-                ocr_engine=digitization_result.ocr_result.engine_used.value if digitization_result.ocr_result else None,
+                ocr_engine=digitization_result.ocr_result.engine.value if digitization_result.ocr_result else None,
             )
             
             # Add line items

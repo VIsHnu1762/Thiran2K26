@@ -23,6 +23,7 @@ from app.services.ocr import (
     OCREngineType,
     OCRResult,
     OCRParser,
+    TesseractOCR,
     MistralOCR,
     GPT4VisionOCR,
 )
@@ -125,22 +126,27 @@ class DigitizerAgent:
         self.confidence_threshold = confidence_threshold
     
     def _create_primary_ocr(self) -> Optional[OCREngine]:
-        """Create primary OCR engine (Mistral)."""
-        api_key = self.settings.mistral_api_key
-        if not api_key:
-            logger.warning("Mistral API key not configured, primary OCR unavailable")
-            return None
-        
-        return MistralOCR(api_key=api_key)
+        """Create primary OCR engine (Tesseract - always available)."""
+        # Use Tesseract as primary since it's local and always available
+        logger.info("Using Tesseract as primary OCR engine")
+        return TesseractOCR()
     
     def _create_fallback_ocr(self) -> Optional[OCREngine]:
-        """Create fallback OCR engine (GPT-4o)."""
-        api_key = self.settings.openai_api_key
-        if not api_key:
-            logger.warning("OpenAI API key not configured, fallback OCR unavailable")
-            return None
+        """Create fallback OCR engine (Mistral or GPT-4)."""
+        # Try Mistral first
+        api_key = self.settings.mistral_api_key
+        if api_key:
+            logger.info("Using Mistral as fallback OCR engine")
+            return MistralOCR(api_key=api_key)
         
-        return GPT4VisionOCR(api_key=api_key)
+        # Fall back to OpenAI
+        api_key = self.settings.openai_api_key
+        if api_key:
+            logger.info("Using GPT-4 Vision as fallback OCR engine")
+            return GPT4VisionOCR(api_key=api_key)
+        
+        logger.warning("No fallback OCR engine configured")
+        return None
     
     async def extract(
         self,

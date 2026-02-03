@@ -8,9 +8,9 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional, Dict, Any
 
-from sqlalchemy import String, DateTime, Text, ForeignKey, Index
+from sqlalchemy import String, DateTime, Text, ForeignKey, Index, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID
 
 from ..database import Base
 
@@ -82,13 +82,13 @@ class AuditLog(Base):
     )
     
     old_value: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONB,
+        JSON,
         nullable=True,
         comment="Previous value before the change"
     )
     
     new_value: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONB,
+        JSON,
         nullable=True,
         comment="New value after the change"
     )
@@ -126,8 +126,8 @@ class AuditLog(Base):
     # -------------------------------------------------------------------------
     # Additional Metadata
     # -------------------------------------------------------------------------
-    metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONB,
+    extra_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSON,
         nullable=True,
         default=dict,
         comment="Additional context (validation errors, confidence scores, etc.)"

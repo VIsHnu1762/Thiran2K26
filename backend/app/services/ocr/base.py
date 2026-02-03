@@ -129,6 +129,7 @@ class OCRLineItem:
 
 class OCREngineType(str, Enum):
     """Supported OCR engines."""
+    TESSERACT = "tesseract"
     MISTRAL = "mistral_ocr"
     GPT4_VISION = "gpt4_vision"
     GEMINI = "gemini_vision"

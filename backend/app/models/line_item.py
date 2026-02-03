@@ -8,9 +8,9 @@ import uuid
 from decimal import Decimal
 from typing import TYPE_CHECKING, Optional, Dict, Any
 
-from sqlalchemy import String, Numeric, Float, Text, ForeignKey, Index, CheckConstraint
+from sqlalchemy import String, Numeric, Float, Text, ForeignKey, Index, CheckConstraint, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID
 
 from ..database import Base
 
@@ -121,7 +121,7 @@ class LineItem(Base):
     )
     
     field_confidence: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONB,
+        JSON,
         nullable=True,
         comment="Per-field confidence (description, quantity, price, etc.)"
     )
@@ -130,7 +130,7 @@ class LineItem(Base):
     # Bounding Box (for UI highlighting)
     # -------------------------------------------------------------------------
     bounding_box: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONB,
+        JSON,
         nullable=True,
         comment="Bounding box coordinates {x, y, width, height}"
     )
