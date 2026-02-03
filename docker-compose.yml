@@ -1,0 +1,191 @@
+# =============================================================================
+# BillAgent Pro - Docker Compose Configuration
+# =============================================================================
+# Development environment with PostgreSQL, Redis, and Celery workers
+#
+# Usage:
+#   docker-compose up -d          # Start services in background
+#   docker-compose down           # Stop services
+#   docker-compose logs -f        # View logs
+#   docker-compose ps             # Check status
+#   docker-compose --profile workers up -d  # Start with Celery workers
+#   docker-compose --profile tools up -d    # Start with pgAdmin
+# =============================================================================
+
+version: '3.9'
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: billagent_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: billagent
+      POSTGRES_USER: billagent
+      POSTGRES_PASSWORD: billagent_dev_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U billagent -d billagent" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - billagent_network
+
+  # ---------------------------------------------------------------------------
+  # Redis (Task Queue & Caching)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: billagent_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - billagent_network
+
+  # ---------------------------------------------------------------------------
+  # Celery Worker (Bill Processing)
+  # ---------------------------------------------------------------------------
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: billagent_celery_worker
+    restart: unless-stopped
+    command: celery -A celery_app worker --loglevel=info --concurrency=4 -Q default,bills,ocr
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: billagent
+      POSTGRES_USER: billagent
+      POSTGRES_PASSWORD: billagent_dev_password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # OCR API Keys (set in .env file)
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - bill_images:/app/storage/bills
+    networks:
+      - billagent_network
+    profiles:
+      - workers # Start with: docker-compose --profile workers up -d
+
+  # ---------------------------------------------------------------------------
+  # Celery Beat (Scheduled Tasks)
+  # ---------------------------------------------------------------------------
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: billagent_celery_beat
+    restart: unless-stopped
+    command: celery -A celery_app beat --loglevel=info
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: billagent
+      POSTGRES_USER: billagent
+      POSTGRES_PASSWORD: billagent_dev_password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    networks:
+      - billagent_network
+    profiles:
+      - workers # Start with: docker-compose --profile workers up -d
+
+  # ---------------------------------------------------------------------------
+  # Flower (Celery Monitoring UI) - Optional
+  # ---------------------------------------------------------------------------
+  flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: billagent_flower
+    restart: unless-stopped
+    command: celery -A celery_app flower --port=5555 --broker=redis://redis:6379/0
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - celery-worker
+    networks:
+      - billagent_network
+    profiles:
+      - monitoring # Start with: docker-compose --profile monitoring up -d
+
+  # ---------------------------------------------------------------------------
+  # pgAdmin (Optional - Database Management UI)
+  # ---------------------------------------------------------------------------
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: billagent_pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@billagent.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - billagent_network
+    profiles:
+      - tools # Only starts with: docker-compose --profile tools up
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+  bill_images:
+    driver: local
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  billagent_network:
+    driver: bridge

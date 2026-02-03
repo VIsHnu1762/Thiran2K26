@@ -14,7 +14,11 @@ import {
   Lightbulb,
   MessageSquareQuote,
   Loader2,
-  PlayCircle
+  PlayCircle,
+  Clock,
+  FileCheck,
+  AlertTriangle,
+  Eye
 } from 'lucide-react';
 import {
   AreaChart,
@@ -25,10 +29,13 @@ import {
   Tooltip,
   ResponsiveContainer
 } from 'recharts';
-import { Bill, Page, BusinessInsight } from '../types';
+import { Bill, Page, BusinessInsight, BillStatus } from '../types';
 import { generateBusinessInsights, generateStorytellingAudio } from '../services/ocrService';
+import { Button } from './ui/button';
+import { Badge, StatusBadge } from './ui/badge';
+import { Card } from './ui/card';
 
-const Dashboard: React.FC<{ bills: Bill[], onNavigate: (page: Page) => void }> = ({ bills, onNavigate }) => {
+const Dashboard: React.FC<{ bills: Bill[], onNavigate: (page: Page) => void, onSelectBill?: (billId: string) => void }> = ({ bills, onNavigate, onSelectBill }) => {
   const [insights, setInsights] = useState<BusinessInsight[]>([]);
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
   const [isStoryMode, setIsStoryMode] = useState(false);
@@ -69,7 +76,17 @@ const Dashboard: React.FC<{ bills: Bill[], onNavigate: (page: Page) => void }> =
     }
   };
 
+  // Calculate statistics
   const grandTotalSales = bills.reduce((acc, b) => acc + b.grandTotal, 0);
+  const pendingReviewBills = bills.filter(b => b.status === 'NEEDS_REVIEW' || b.status === 'PENDING');
+  const processingBills = bills.filter(b => b.status === 'PROCESSING');
+  const approvedBills = bills.filter(b => b.status === 'APPROVED' || b.status === 'VERIFIED');
+  const flaggedBills = bills.filter(b => b.status === 'FLAGGED' || b.status === 'FAILED');
+
+  // Calculate average confidence
+  const avgConfidence = bills.length > 0
+    ? bills.reduce((acc, b) => acc + (b.overallConfidence || 0), 0) / bills.length
+    : 0;
 
   const StatCard = ({ title, value, sub, icon: Icon, color }: any) => (
     <div className="tap-effect glass-card p-7 group hover:scale-[1.02] cursor-pointer">
@@ -151,9 +168,77 @@ const Dashboard: React.FC<{ bills: Bill[], onNavigate: (page: Page) => void }> =
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard title="Processed" value={bills.length} sub="+12%" icon={CheckCircle2} color="bg-blue-500" />
         <StatCard title="Sales Volume" value={`₹${grandTotalSales.toLocaleString()}`} sub="+18%" icon={TrendingUp} color="bg-emerald-500" />
-        <StatCard title="System Error" value="0.8%" sub="-2%" icon={AlertCircle} color="bg-rose-500" />
-        <StatCard title="Precision" value="98.2%" sub="+4%" icon={Zap} color="bg-amber-500" />
+        <StatCard title="Pending Review" value={pendingReviewBills.length} sub={pendingReviewBills.length > 0 ? 'Action needed' : 'All clear'} icon={Clock} color="bg-amber-500" />
+        <StatCard title="Precision" value={`${avgConfidence.toFixed(1)}%`} sub="+4%" icon={Zap} color="bg-indigo-500" />
       </div>
+
+      {/* Pending Review Section */}
+      {pendingReviewBills.length > 0 && (
+        <Card variant="glass" padding="lg" className="border-amber-500/20 bg-amber-500/5">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-amber-500/20 rounded-2xl flex items-center justify-center">
+                <AlertTriangle className="text-amber-400" size={24} />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white/90">Bills Requiring Review</h2>
+                <p className="text-amber-300/70 text-sm">{pendingReviewBills.length} bill(s) need your attention</p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => onNavigate(Page.History)}
+              className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+            >
+              View All
+              <ChevronRight size={16} className="ml-1" />
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {pendingReviewBills.slice(0, 3).map((bill) => (
+              <div
+                key={bill.id}
+                className="tap-effect p-4 rounded-xl bg-white/5 border border-white/10 hover:border-amber-500/30 cursor-pointer transition-all group"
+                onClick={() => onSelectBill?.(bill.id)}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-12 h-12 rounded-lg overflow-hidden bg-white/10 flex-shrink-0">
+                    {bill.imageUrl && (
+                      <img src={bill.imageUrl} alt="" className="w-full h-full object-cover" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-bold text-white/90 truncate">
+                        {bill.vendorName || bill.vendor?.name || 'Unknown Vendor'}
+                      </span>
+                      <StatusBadge status={bill.status} size="sm" />
+                    </div>
+                    <p className="text-xs text-white/50 mb-2">
+                      {bill.invoiceNumber || bill.id} • {bill.date || bill.invoiceDate}
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-bold text-white/70">₹{bill.grandTotal.toFixed(2)}</span>
+                      <div className="flex items-center gap-1">
+                        <span className={`text-xs font-bold ${bill.overallConfidence >= 85 ? 'text-emerald-400' :
+                            bill.overallConfidence >= 70 ? 'text-amber-400' : 'text-rose-400'
+                          }`}>
+                          {bill.overallConfidence}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="text-xs text-white/40">Click to review</span>
+                  <Eye size={14} className="text-amber-400" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">

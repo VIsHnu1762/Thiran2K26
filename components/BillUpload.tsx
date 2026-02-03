@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   FileUp,
   Loader2,
@@ -13,17 +13,23 @@ import {
   Zap,
   ArrowRight,
   Edit2,
-  Save
+  Save,
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import { processBillImage } from '../services/ocrService';
-import { Bill, BillItem, AgentReport } from '../types';
+import { api, usePolling } from '../services/api';
+import { Bill, BillItem, AgentReport, TaskStatus } from '../types';
 import { correctionService } from '../services/correctionService';
+import { Button } from './ui/button';
+import { Badge } from './ui/badge';
 
 interface BillUploadProps {
   onComplete: (bill: Bill) => void;
+  useBackendProcessing?: boolean; // Toggle between local and backend processing
 }
 
-const BillUpload: React.FC<BillUploadProps> = ({ onComplete }) => {
+const BillUpload: React.FC<BillUploadProps> = ({ onComplete, useBackendProcessing = false }) => {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -33,7 +39,46 @@ const BillUpload: React.FC<BillUploadProps> = ({ onComplete }) => {
   const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
   const [originalData, setOriginalData] = useState<Partial<Bill> | null>(null);
 
+  // Backend processing state
+  const [taskId, setTaskId] = useState<string | null>(null);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [processingMessage, setProcessingMessage] = useState('');
+  const [processingError, setProcessingError] = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle polling completion
+  const handlePollingComplete = useCallback((bill: Bill) => {
+    setExtractedData(bill);
+    setOriginalData(JSON.parse(JSON.stringify(bill)));
+    setStep('review');
+    setIsProcessing(false);
+    setTaskId(null);
+  }, []);
+
+  // Handle polling error
+  const handlePollingError = useCallback((error: string) => {
+    setProcessingError(error);
+    setStep('upload');
+    setIsProcessing(false);
+    setTaskId(null);
+  }, []);
+
+  // Setup polling hook
+  const { status, isPolling, progress, message, startPolling, stopPolling } = usePolling(
+    taskId,
+    handlePollingComplete,
+    handlePollingError,
+    { interval: 2000, maxAttempts: 90 } // 3 minutes max
+  );
+
+  // Update progress from polling
+  useEffect(() => {
+    if (isPolling && status) {
+      setProcessingProgress(progress);
+      setProcessingMessage(message);
+    }
+  }, [isPolling, status, progress, message]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
@@ -69,7 +114,31 @@ const BillUpload: React.FC<BillUploadProps> = ({ onComplete }) => {
     if (!preview) return;
     setIsProcessing(true);
     setStep('analyzing');
+    setProcessingError(null);
+    setProcessingProgress(0);
+    setProcessingMessage('Initializing...');
 
+    // Use backend processing if enabled and file is available
+    if (useBackendProcessing && file) {
+      try {
+        const response = await api.uploadBill(file);
+
+        if (response.success && response.data?.taskId) {
+          setTaskId(response.data.taskId);
+          startPolling();
+        } else {
+          throw new Error(response.error || 'Failed to upload bill');
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        setProcessingError(errorMessage);
+        setStep('upload');
+        setIsProcessing(false);
+      }
+      return;
+    }
+
+    // Local processing (original implementation)
     try {
       const result = await processBillImage(preview);
 
@@ -100,6 +169,16 @@ const BillUpload: React.FC<BillUploadProps> = ({ onComplete }) => {
       setIsProcessing(false);
     }
   };
+
+  // Cancel backend processing
+  const cancelProcessing = useCallback(() => {
+    stopPolling();
+    setTaskId(null);
+    setIsProcessing(false);
+    setStep('upload');
+    setProcessingProgress(0);
+    setProcessingMessage('');
+  }, [stopPolling]);
 
   // Handle item field editing
   const handleItemEdit = (index: number, field: keyof BillItem, value: string | number) => {
@@ -272,8 +351,49 @@ const BillUpload: React.FC<BillUploadProps> = ({ onComplete }) => {
                         <Scan className="text-blue-400 animate-pulse" size={48} />
                       </div>
                     </div>
-                    <h3 className="text-3xl font-bold text-white mb-3 tracking-tight">Agent reasoning...</h3>
-                    <p className="text-blue-200/60 text-lg max-w-sm font-medium">Extracting neural patterns and verifying ledger consistency.</p>
+
+                    {/* Progress bar for backend processing */}
+                    {useBackendProcessing && taskId && (
+                      <div className="w-full max-w-xs mb-6">
+                        <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500"
+                            style={{ width: `${processingProgress}%` }}
+                          />
+                        </div>
+                        <p className="text-blue-200/60 text-sm mt-2">{processingProgress}% complete</p>
+                      </div>
+                    )}
+
+                    <h3 className="text-3xl font-bold text-white mb-3 tracking-tight">
+                      {useBackendProcessing ? 'Processing...' : 'Agent reasoning...'}
+                    </h3>
+                    <p className="text-blue-200/60 text-lg max-w-sm font-medium">
+                      {processingMessage || 'Extracting neural patterns and verifying ledger consistency.'}
+                    </p>
+
+                    {/* Error display */}
+                    {processingError && (
+                      <div className="mt-6 p-4 bg-rose-500/20 border border-rose-500/30 rounded-xl max-w-sm">
+                        <div className="flex items-center gap-2 text-rose-400 mb-2">
+                          <AlertCircle size={18} />
+                          <span className="font-bold">Processing Error</span>
+                        </div>
+                        <p className="text-rose-300/80 text-sm">{processingError}</p>
+                      </div>
+                    )}
+
+                    {/* Cancel button for backend processing */}
+                    {useBackendProcessing && taskId && (
+                      <Button
+                        variant="ghost"
+                        onClick={cancelProcessing}
+                        className="mt-6"
+                      >
+                        <X size={16} className="mr-2" />
+                        Cancel
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
