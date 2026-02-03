@@ -295,11 +295,17 @@ export const processBillImage = async (base64Image: string): Promise<Partial<Bil
         // 1. Map Agents
         const agents: Array<{ agentName: string; verdict: 'OK' | 'WARNING' | 'CRITICAL'; reasoning: string }> = [];
 
+        // Get confidence score from various possible locations
+        const overallConfidence = data.confidence_scores?.overall || 
+                                  data.confidence_score || 
+                                  data.data?.confidence_score || 
+                                  85; // Default fallback
+
         // Confidence Agent
         agents.push({
             agentName: 'OCR Confidence Agent',
-            verdict: data.confidence_scores.overall >= 85 ? 'OK' : data.confidence_scores.overall >= 60 ? 'WARNING' : 'CRITICAL',
-            reasoning: `Overall Confidence: ${Math.round(data.confidence_scores.overall)}%`
+            verdict: overallConfidence >= 85 ? 'OK' : overallConfidence >= 60 ? 'WARNING' : 'CRITICAL',
+            reasoning: `Overall Confidence: ${Math.round(overallConfidence)}%`
         });
 
         // Error Agent (Backend returns list of error strings)
@@ -328,21 +334,26 @@ export const processBillImage = async (base64Image: string): Promise<Partial<Bil
             reasoning: `Decision: ${data.workflow_decision}`
         });
 
-        // 2. Map Items
-        const items = data.items.map((item: any) => ({
-            name: item.name,
-            quantity: item.quantity,
-            price: item.unit_price,
-            total: item.line_total,
-            confidence: item.confidence
+        // 2. Map Items - handle both formats
+        const itemsArray = data.items || data.data?.items || [];
+        console.log('📦 Items from backend:', itemsArray);
+        
+        const items = itemsArray.map((item: any) => ({
+            name: item.name || 'Unknown Item',
+            quantity: item.quantity || 1,
+            price: item.unit_price || item.price || 0,
+            total: item.line_total || item.total || 0,
+            confidence: (item.confidence || 0.85) * 100 // Convert to percentage if needed
         }));
 
+        console.log('📦 Mapped items:', items);
+
         return {
-            vendorName: "Analyzed Bill", // Backend doesn't extract vendor yet
-            date: new Date().toISOString().split('T')[0], // Backend doesn't extract date yet
+            vendorName: data.data?.vendor || data.vendor || "Analyzed Bill",
+            date: data.data?.date || data.date || new Date().toISOString().split('T')[0],
             items: items,
-            grandTotal: data.total,
-            overallConfidence: data.confidence_scores.overall || 0,
+            grandTotal: data.total || data.data?.total || 0,
+            overallConfidence: overallConfidence,
             agents: agents
         };
 

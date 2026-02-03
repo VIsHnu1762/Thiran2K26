@@ -121,16 +121,53 @@ const BillUpload: React.FC<BillUploadProps> = ({ onComplete, useBackendProcessin
     // Use backend processing if enabled and file is available
     if (useBackendProcessing && file) {
       try {
-        const response = await api.uploadBill(file);
+        // Try synchronous endpoint first (works without Celery)
+        console.log('📤 Sending file to backend:', file.name);
+        const response = await api.analyzeBillSync(file);
+        console.log('📥 Backend response:', response);
 
-        if (response.success && response.data?.taskId) {
-          setTaskId(response.data.taskId);
-          startPolling();
+        if (response.success && response.data) {
+          console.log('✅ Response data:', response.data);
+          console.log('📦 Items received:', response.data.items);
+          
+          // Handle synchronous response directly
+          setProcessingMessage('Analysis complete');
+          setProcessingProgress(100);
+          
+          // Map the response to our expected format
+          const mappedItems = (response.data.items || []).map((item: any) => ({
+            name: item.name || item.description || 'Unknown Item',
+            quantity: item.quantity || 1,
+            price: item.unit_price || item.price || 0,
+            total: item.line_total || item.total || 0,
+            confidence: (item.confidence || 0) * 100
+          }));
+          
+          const result = {
+            items: mappedItems,
+            grandTotal: response.data.total || response.data.data?.total || mappedItems.reduce((sum: number, item: any) => sum + item.total, 0),
+            confidence: response.data.confidence_score || 0.85,
+            vendorName: response.data.vendor || response.data.data?.vendor || 'Unknown Vendor',
+            date: response.data.date || response.data.data?.date || new Date().toISOString().split('T')[0],
+            overallConfidence: (response.data.confidence_score || 0.85) * 100,
+            agents: response.data.agents || []
+          };
+          
+          console.log('🎯 Final mapped result:', result);
+          
+          setExtractedData(result);
+          setStep('review');
+          setIsProcessing(false);
+          
+          if (response.data.warning || response.data.data?.warning) {
+            console.warn(response.data.warning || response.data.data?.warning);
+          }
         } else {
-          throw new Error(response.error || 'Failed to upload bill');
+          throw new Error(response.error || 'Failed to analyze bill');
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        console.error('❌ Backend processing error:', error);
         setProcessingError(errorMessage);
         setStep('upload');
         setIsProcessing(false);
@@ -532,15 +569,15 @@ const BillUpload: React.FC<BillUploadProps> = ({ onComplete, useBackendProcessin
                             // VIEW MODE
                             <div className="flex items-center justify-between">
                               <div className="space-y-1 flex-1">
-                                <p className="text-base font-bold text-white/90">{item.name}</p>
-                                <p className="text-sm text-white/40 font-medium">{item.quantity} units @ ₹{item.price.toFixed(2)}</p>
+                                <p className="text-base font-bold text-white/90">{item.name || 'Unknown Item'}</p>
+                                <p className="text-sm text-white/40 font-medium">{item.quantity || 0} units @ ₹{(item.price ?? 0).toFixed(2)}</p>
                               </div>
                               <div className="flex items-center gap-3">
                                 <div className="text-right space-y-1">
-                                  <p className="text-lg font-bold text-blue-400 tracking-tight">₹{item.total.toFixed(2)}</p>
+                                  <p className="text-lg font-bold text-blue-400 tracking-tight">₹{(item.total ?? 0).toFixed(2)}</p>
                                   <div className="flex items-center gap-1.5 justify-end">
-                                    <div className={`w-2 h-2 rounded-full ${item.confidence > 70 ? 'bg-emerald-500' : item.confidence > 50 ? 'bg-amber-500' : 'bg-rose-500'}`} />
-                                    <span className={`text-[11px] font-bold ${item.confidence > 70 ? 'text-emerald-400' : item.confidence > 50 ? 'text-amber-400' : 'text-rose-400'}`}>{item.confidence}% Match</span>
+                                    <div className={`w-2 h-2 rounded-full ${(item.confidence ?? 0) > 70 ? 'bg-emerald-500' : (item.confidence ?? 0) > 50 ? 'bg-amber-500' : 'bg-rose-500'}`} />
+                                    <span className={`text-[11px] font-bold ${(item.confidence ?? 0) > 70 ? 'text-emerald-400' : (item.confidence ?? 0) > 50 ? 'text-amber-400' : 'text-rose-400'}`}>{Math.round(item.confidence ?? 0)}% Match</span>
                                   </div>
                                 </div>
                                 <button
@@ -561,7 +598,7 @@ const BillUpload: React.FC<BillUploadProps> = ({ onComplete, useBackendProcessin
                   <div className="p-7 rounded-[28px] bg-blue-600/10 border border-blue-500/20 flex justify-between items-center shadow-inner">
                     <div className="space-y-1">
                       <p className="text-xs text-blue-300 uppercase font-bold tracking-widest">Aggregated Total</p>
-                      <p className="text-3xl font-bold text-white tracking-tighter">₹{extractedData.grandTotal?.toFixed(2)}</p>
+                      <p className="text-3xl font-bold text-white tracking-tighter">₹{(extractedData.grandTotal ?? 0).toFixed(2)}</p>
                     </div>
                     <button
                       onClick={confirmBill}

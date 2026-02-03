@@ -94,7 +94,7 @@ const App: React.FC = () => {
       case Page.Dashboard:
         return <Dashboard bills={bills} onNavigate={setCurrentPage} />;
       case Page.Process:
-        return <BillUpload onComplete={(newBill) => saveBills([newBill, ...bills])} />;
+        return <BillUpload onComplete={(newBill) => saveBills([newBill, ...bills])} useBackendProcessing={true} />;
       case Page.History:
         return <BillHistory bills={bills} />;
       case Page.Analytics:

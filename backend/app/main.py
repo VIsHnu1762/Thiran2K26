@@ -6,6 +6,7 @@ Includes Celery integration for async bill processing.
 """
 
 import base64
+import logging
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -49,6 +50,9 @@ except ImportError:
     celery_app = None
     TaskProgress = None
     REDIS_URL = settings.redis_url
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # Application Lifespan
@@ -765,6 +769,119 @@ async def get_bill_audit_logs(
         total=len(logs),
         bill_id=bill_id
     )
+
+
+# =============================================================================
+# Development/Standalone Endpoint (works without Celery/DB)
+# =============================================================================
+@app.post("/api/v1/bills/analyze-sync", tags=["Bills"], summary="Synchronous bill analysis (no DB required)")
+async def analyze_bill_sync(file: UploadFile = File(...)):
+    """
+    Synchronous bill analysis for development/demo purposes.
+    Works without database or Celery - returns immediate results using real OCR.
+    
+    This is a simplified endpoint for when infrastructure is unavailable.
+    """
+    # Validate file type
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    
+    # Validate file size (max 10MB)
+    content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File size exceeds 10MB limit")
+    
+    try:
+        # Initialize Digitizer Agent with real OCR
+        from backend.agents.digitizer import DigitizerAgent
+        
+        logger.info(f"Processing bill with real OCR: {file.filename}")
+        digitizer = DigitizerAgent()
+        
+        # Extract data using real OCR
+        result = await digitizer.extract(
+            image_bytes=content,
+            image_url=file.filename,
+            db_session=None  # No DB for sync endpoint
+        )
+        
+        # Check if OCR succeeded
+        if result.status.value == "failed" or not result.bill_data:
+            # Log the error
+            error_msg = result.fallback_reason or "OCR extraction failed"
+            logger.error(f"OCR failed for {file.filename}: {error_msg}")
+            
+            raise HTTPException(
+                status_code=500,
+                detail=f"OCR processing failed: {error_msg}"
+            )
+        
+        # Extract bill data
+        bill_data = result.bill_data
+        
+        # Debug logging
+        logger.info(f"📊 Bill data keys: {list(bill_data.keys())}")
+        logger.info(f"📋 Line items raw: {bill_data.get('line_items', [])}")
+        logger.info(f"🔍 OCR result line_items count: {len(result.ocr_result.line_items) if result.ocr_result else 0}")
+        
+        # Format items for frontend
+        items = []
+        # Try both 'items' and 'line_items' keys
+        line_items_raw = bill_data.get("line_items", bill_data.get("items", []))
+        
+        for item in line_items_raw:
+            items.append({
+                "name": item.get("description", "Unknown Item"),
+                "quantity": item.get("quantity", 1),
+                "unit_price": float(item.get("unit_price", 0)),
+                "line_total": float(item.get("total_price", item.get("line_total", 0))),
+                "confidence": item.get("confidence", 0.0)
+            })
+        
+        # Get totals
+        subtotal = float(bill_data.get("subtotal", 0))
+        tax = float(bill_data.get("tax", 0))
+        total = float(bill_data.get("total", 0))
+        
+        # Get confidence scores
+        overall_confidence = result.ocr_result.overall_confidence if result.ocr_result else 0.0
+        
+        # Get metadata
+        metadata = result.metadata or {}
+        
+        return {
+            "success": True,
+            "message": f"Bill processed successfully using {metadata.get('ocr_engine', 'OCR')}",
+            "items": items,
+            "total": total,
+            "subtotal": subtotal,
+            "tax": tax,
+            "confidence_score": overall_confidence,
+            "confidence_scores": {
+                "overall": int(overall_confidence * 100)
+            },
+            "errors": result.validation_errors,
+            "workflow_decision": result.suggested_status,
+            "data": {
+                "bill_id": str(uuid.uuid4()),
+                "filename": file.filename,
+                "status": result.status.value,
+                "vendor": bill_data.get("vendor_name", "Unknown"),
+                "date": bill_data.get("invoice_date"),
+                "invoice_number": bill_data.get("invoice_number"),
+                "total": total,
+                "confidence_score": overall_confidence,
+                "primary_engine_used": result.primary_engine_used,
+                "fallback_reason": result.fallback_reason,
+                "processing_time_ms": result.total_processing_time_ms,
+                "ocr_engine": metadata.get("ocr_engine"),
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error processing bill {file.filename}")
+        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
 
 
 # =============================================================================

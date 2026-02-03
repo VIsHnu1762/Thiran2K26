@@ -33,15 +33,24 @@ class ApiClient {
         // Get auth headers
         const authHeaders = await this.getAuthHeaders();
 
+        // Determine if this is a file upload (FormData)
+        const isFileUpload = options.body instanceof FormData;
+
         try {
+            const headers: Record<string, string> = {
+                ...authHeaders,
+                ...options.headers,
+            };
+            
+            // Only set Content-Type for JSON requests, not file uploads
+            if (!isFileUpload && !options.headers?.['Content-Type']) {
+                headers['Content-Type'] = 'application/json';
+            }
+
             const response = await fetch(url, {
                 ...options,
                 signal: controller.signal,
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...authHeaders,
-                    ...options.headers,
-                },
+                headers,
             });
 
             // Handle 401 - try to refresh token
@@ -227,10 +236,16 @@ class ApiClient {
                 });
             }
 
-            const response = await this.retryFetch(`${this.baseUrl}${endpoint}`, {
+            // Get auth headers but don't include Content-Type (browser will set it for FormData)
+            const authHeaders = await this.getAuthHeaders();
+            
+            const response = await this.fetchWithTimeout(`${this.baseUrl}${endpoint}`, {
                 method: 'POST',
                 body: formData,
-                headers: {}, // Let browser set content-type for FormData
+                headers: {
+                    ...authHeaders,
+                    // Don't set Content-Type - let browser handle it for multipart/form-data
+                },
             });
 
             const data = await response.json();
@@ -263,6 +278,11 @@ export const api = {
     // Bill Operations
     async uploadBill(file: File): Promise<ApiResponse<{ taskId: string }>> {
         return client.uploadFile('/api/v1/bills/upload', file);
+    },
+
+    // Synchronous bill analysis (for dev/demo without Celery)
+    async analyzeBillSync(file: File): Promise<ApiResponse<any>> {
+        return client.uploadFile('/api/v1/bills/analyze-sync', file);
     },
 
     async getTaskStatus(taskId: string): Promise<ApiResponse<TaskStatus>> {

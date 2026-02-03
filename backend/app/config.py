@@ -6,6 +6,7 @@ Loads values from environment variables and .env file.
 """
 
 from functools import lru_cache
+from pathlib import Path
 from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator
@@ -15,7 +16,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
     
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=[".env", "backend/.env"],  # Look in current dir and backend dir
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore"
