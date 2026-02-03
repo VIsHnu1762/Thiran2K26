@@ -126,7 +126,7 @@ class AuditLog(Base):
     # -------------------------------------------------------------------------
     # Additional Metadata
     # -------------------------------------------------------------------------
-    metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+    meta_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(
         JSONB,
         nullable=True,
         default=dict,

@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-from .config import settings
+from ..config import settings
 
 
 # =============================================================================

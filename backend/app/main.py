@@ -59,13 +59,20 @@ async def lifespan(app: FastAPI):
     # Startup
     print(f"🚀 Starting BillAgent Pro v{settings.api_version}")
     print(f"   Environment: {settings.environment}")
-    await init_db()
-    print("   ✅ Database connected")
+    try:
+        await init_db()
+        print("   ✅ Database connected")
+    except Exception as e:
+        print(f"   ⚠️  Database connection failed: {e}")
+        print("   ⚠️  API will run without database (some features unavailable)")
     yield
     # Shutdown
     print("🔌 Shutting down BillAgent Pro...")
-    await close_db()
-    print("   ✅ Database connections closed")
+    try:
+        await close_db()
+        print("   ✅ Database connections closed")
+    except Exception:
+        pass
 
 
 # =============================================================================

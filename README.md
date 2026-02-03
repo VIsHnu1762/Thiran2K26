@@ -11,7 +11,7 @@ An enterprise-ready, agentic AI-powered bill digitization and analysis platform 
 ## 🎯 Core Features & Architecture
 
 ### ✨ **Production-Grade Multi-Agent System**
-Our system employs **5 specialized AI agents** working in orchestrated workflow:
+Our system employs **4 core AI agents** orchestrated via `BillProcessingService`:
 
 1. **🔍 Digitizer Agent** (`digitizer.py`)
    - Primary: Mistral OCR 3 (89%+ handwriting accuracy)
@@ -37,12 +37,14 @@ Our system employs **5 specialized AI agents** working in orchestrated workflow:
    - Expense categorization with confidence scores
    - Learning from historical assignments
 
-5. **🔄 Workflow Agent** (Legacy: `workflow_agent.py`)
-   - Auto-approve high-confidence bills (>85%)
-   - Route low-confidence to manual review
-   - Integration with approval workflows
+**Supporting Agents:**
+- **📊 Confidence Agent** (`confidence_agent.py`) - Quality scoring
+- **⚠️ Error Agent** (`error_agent.py`) - Error detection & handling
+- **🧠 Learning Agent** (`learning_agent.py`) - ML improvement module
+- **🔄 Workflow Agent** (`workflow_agent.py`) - Auto-approve/route workflows
 
 ### 📊 **Enterprise Features**
+- **Orchestration Service** - `BillProcessingService` coordinates all agents via `process_bill()` and `reprocess_bill()`
 - **PostgreSQL Database** - ACID compliance for financial integrity
 - **Async Architecture** - SQLAlchemy 2.0 with async/await support
 - **Task Queue** - Celery + Redis for background OCR processing
@@ -50,6 +52,7 @@ Our system employs **5 specialized AI agents** working in orchestrated workflow:
 - **Authentication & Authorization** - JWT-based with role-based permissions
 - **Docker Support** - Multi-container orchestration (PostgreSQL, Redis, Celery workers)
 - **Database Migrations** - Alembic for version-controlled schema changes
+- **CI/CD Pipeline** - GitHub Actions for automated testing & deployment
 
 ---
 
@@ -249,10 +252,10 @@ billagent-pro/
 │   │   ├── auditor.py          # Agent 2: Math validation
 │   │   ├── controller.py       # Agent 3: Duplicate detection
 │   │   ├── accountant.py       # Agent 4: GL code assignment
-│   │   ├── confidence_agent.py # Legacy: Quality scoring
-│   │   ├── error_agent.py      # Legacy: Error detection
-│   │   ├── workflow_agent.py   # Legacy: Routing
-│   │   └── learning_agent.py   # ML improvement module
+│   │   ├── confidence_agent.py # Supporting: Quality scoring
+│   │   ├── error_agent.py      # Supporting: Error detection
+│   │   ├── workflow_agent.py   # Supporting: Auto-routing
+│   │   └── learning_agent.py   # Supporting: ML improvement
 │   │
 │   ├── tasks/                  # Celery Background Tasks
 │   │   ├── process_bill.py     # Async bill processing
@@ -818,6 +821,25 @@ docker-compose -f docker-compose.prod.yml up -d
 # - Frontend (NGINX + React build)
 # - Automatic SSL with Let's Encrypt (configure in nginx.conf)
 ```
+
+### CI/CD Pipeline (GitHub Actions)
+
+The project includes automated CI/CD workflows:
+
+- **Backend Tests** (`.github/workflows/backend-tests.yml`) - Pytest with coverage
+- **Frontend Tests** (`.github/workflows/frontend-tests.yml`) - Vitest + ESLint
+- **Production Deploy** (`.github/workflows/deploy.yml`) - Build & push to GitHub Container Registry
+
+**Container Images:**
+```bash
+ghcr.io/<your-org>/billagent-pro/backend:latest
+ghcr.io/<your-org>/billagent-pro/frontend:latest
+```
+
+**Deployment Triggers:**
+- Push to `main` branch (auto-deploy to production)
+- Manual workflow dispatch with environment selection
+- Skip tests option for emergency deployments
 
 ### Manual Deployment Steps
 
@@ -1679,8 +1701,8 @@ This project was developed in 7 phases. See detailed documentation:
 - [PHASE3_README.md](PHASE3_README.md) - Database & PostgreSQL migration
 - [PHASE4_README.md](PHASE4_README.md) - Authentication & authorization
 - [PHASE5_README.md](PHASE5_README.md) - Celery & async processing
-- [PHASE6_README.md](PHASE6_README.md) - Production deployment
-- [PHASE7_README.md](PHASE7_README.md) - Monitoring & optimization
+- [PHASE6_README.md](PHASE6_README.md) - UI/UX refinements
+- [PHASE7_README.md](PHASE7_README.md) - Production deployment, CI/CD & testing
 
 ### Reporting Issues
 

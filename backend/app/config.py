@@ -106,6 +106,7 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     environment: str = Field(default="development", description="Environment name")
     debug: bool = Field(default=True, description="Debug mode")
+    api_version: str = Field(default="1.0.0", description="API version")
     api_v1_prefix: str = Field(default="/api/v1", description="API version prefix")
     project_name: str = Field(default="BillAgent Pro", description="Project name")
     
